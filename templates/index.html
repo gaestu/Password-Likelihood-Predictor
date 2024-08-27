@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Likelihood Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>Password Likelihood Predictor</header>
+    <div class="container">
+        <div class="left box">
+            <h2>Select Model</h2>
+            <select id="modelSelect">
+                {% for model in models %}
+                    <option value="{{ model }}">{{ model }}</option>
+                {% endfor %}
+            </select>
+            <h2>Enter Words</h2>
+            <textarea id="wordsInput" placeholder="Enter one or multiple words..."></textarea>
+            <button onclick="predict()">Predict</button>
+        </div>
+        <div class="right box">
+            <h2>Results</h2>
+            <div id="results"></div>
+            <div class="button-container">
+                <button onclick="sortResults()">Sort by Score</button>
+                <button onclick="downloadCSV()">Download CSV</button>
+            </div>
+        </div>
+    </div>
+    <footer>
+        <div id="status"></div>
+    </footer>
+    <script>
+        document.addEventListener('keydown', function(event) {
+            if (event.ctrlKey && event.key === 'Enter') {
+                predict();
+            }
+        });
+
+        function predict() {
+            const model = document.getElementById('modelSelect').value;
+            const words = document.getElementById('wordsInput').value.split('\n');
+            const resultsDiv = document.getElementById('results');
+            const statusDiv = document.getElementById('status');
+            resultsDiv.innerHTML = '';
+            statusDiv.innerHTML = 'Predicting...';
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ model, words }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                statusDiv.innerHTML = 'Prediction complete.';
+                const ul = document.createElement('ul');
+                data.predictions.forEach(prediction => {
+                    const li = document.createElement('li');
+                    li.textContent = `${prediction.word}: ${prediction.score}`;
+                    ul.appendChild(li);
+                });
+                resultsDiv.appendChild(ul);
+            })
+            .catch(error => {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+            });
+        }
+
+        function sortResults() {
+            const resultsDiv = document.getElementById('results');
+            const items = Array.from(resultsDiv.querySelectorAll('li'));
+            items.sort((a, b) => {
+                const scoreA = parseFloat(a.textContent.split(': ')[1]);
+                const scoreB = parseFloat(b.textContent.split(': ')[1]);
+                return scoreB - scoreA;
+            });
+            resultsDiv.innerHTML = '';
+            const ul = document.createElement('ul');
+            items.forEach(item => ul.appendChild(item));
+            resultsDiv.appendChild(ul);
+        }
+
+        function downloadCSV() {
+            const resultsDiv = document.getElementById('results');
+            const rows = [['Word', 'Score']];
+            resultsDiv.querySelectorAll('li').forEach(li => {
+                const [word, score] = li.textContent.split(': ');
+                rows.push([word, score]);
+            });
+
+            let csvContent = "data:text/csv;charset=utf-8," 
+                + rows.map(e => e.join(",")).join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "predictions.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

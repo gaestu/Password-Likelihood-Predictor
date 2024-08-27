@@ -1,0 +1,110 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    background-color: #0056b3;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Align items to the top */
+    height: calc(100vh - 160px); /* Adjust height to account for header and footer */
+    padding-top: 20px;
+}
+
+.box {
+    background-color: #3399ff;
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 10px;
+    width: 45%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* Align content to the top */
+    height: 500px; /* Set a fixed height for both sections */
+}
+
+textarea {
+    width: 100%;
+    height: 200px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    box-sizing: border-box;
+    flex-grow: 1; /* Allow textarea to grow */
+}
+
+button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    align-self: flex-start; /* Align button to the start */
+}
+
+button:hover {
+    background-color: #218838;
+}
+
+#results {
+    background-color: white; /* Add white background for results */
+    color: black;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 20px;
+    flex-grow: 1; /* Allow results to grow */
+    overflow-y: auto; /* Add scroll if content overflows */
+}
+
+#results ul {
+    list-style-type: none; /* Remove bullet points from list */
+    padding: 0; /* Remove default padding */
+}
+
+.left, .right {
+    background-color: #3399ff;
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 10px;
+    width: 45%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* Align content to the top */
+    height: 500px; /* Set a fixed height for both sections */
+}
+
+.right .button-container {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.right .button-container button:last-child {
+    margin-left: auto; /* Move the last button to the right */
+}
+
+footer {
+    background-color: #0056b3;
+    color: white;
+    padding: 20px; /* Increase padding for more height */
+    text-align: center;
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+}
