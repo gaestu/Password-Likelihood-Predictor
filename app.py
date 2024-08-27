@@ -4,8 +4,8 @@ import os
 import sys
 import joblib
 
-from code.feature_engineering import extract_features
-from code.scale_features import scale_features_from_stored
+from app_code.feature_engineering import extract_features
+from app_code.scale_features import scale_features_from_stored
 
 app = Flask(__name__)
 
