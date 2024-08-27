@@ -1,5 +1,8 @@
 # Password-Likelihood-Predictor
 
+## Remark
+The training of the models is still ongoing, so this is a preview
+
 ## Overview
 Password-Likelihood-Predictor is a Flask-based web application that creates a score on strings to determine how likely they are to be a password.
 
