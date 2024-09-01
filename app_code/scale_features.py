@@ -27,7 +27,7 @@ def scale_features_from_stored(data_frame, scaler_path='model/scalers'):
             # If there's no scaler, just copy the original feature
             normalized_data[feature_name] = data_frame[feature_name]
 
-    print("Original data:\n", data_frame)
-    print("Final normalized data:\n", normalized_data)
-    print("\n\n")
+    # print("Original data:\n", data_frame)
+    # print("Final normalized data:\n", normalized_data)
+    # print("\n\n")
     return normalized_data

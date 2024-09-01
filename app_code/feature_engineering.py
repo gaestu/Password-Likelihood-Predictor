@@ -139,32 +139,70 @@ def proportion_uppercase(word):
 def count_white_spaces(word):
     return sum(c.isspace() for c in word)
 
+def combined_ratio(word):
+    length = len(word)
+    if length == 0:
+        return 0
+    
+    special_characters = string.punctuation
+    vowels = 'aeiouAEIOU'
+    consonants = ''.join(set(string.ascii_letters) - set(vowels))
+
+    special_char_count = sum(c in special_characters for c in word)
+    digit_count = sum(c.isdigit() for c in word)
+    vowel_count = sum(c in vowels for c in word)
+    consonant_count = sum(c in consonants for c in word)
+    uppercase_count = sum(c.isupper() for c in word)
+    unique_char_count = len(set(word))
+
+    # Verhältnisse berechnen
+    special_chars_ratio = special_char_count / length
+    digits_ratio = digit_count / length
+    vowels_ratio = vowel_count / length
+    consonants_ratio = consonant_count / length
+    uppercase_ratio = uppercase_count / length
+    unique_chars_ratio = unique_char_count / length
+
+    # Einfache Kombination der Verhältnisse
+    combined_value = (
+        special_chars_ratio +
+        digits_ratio +
+        vowels_ratio +
+        consonants_ratio +
+        uppercase_ratio +
+        unique_chars_ratio
+    ) / 6
+
+    return combined_value
+
+
 def extract_features(word):
     """Extract features from a single word."""
     features = {
         # 'length': len(word), # This feature is not included in the final model du to high correlation with other features
+        'entropy': calculate_entropy(word),
+        'longest_alpha_seq': longest_alphabetical_sequence(word),
+        'max_consecutive_repeats': max_consecutive_repeats(word),
+        'symmetry': word_symmetry(word),
+        'average_unicode': average_unicode_value(word),
         'digit_count': count_digits(word),
         'uppercase_count': count_uppercase(word),
         'special_char_count': count_special_chars(word),
-        'entropy': calculate_entropy(word),
         'vowel_count': count_vowels(word),
         'consonant_count': count_consonants(word),
         'repeated_char_count': count_repeated_chars(word),
         'unique_char_count': count_unique_chars(word),
-        'max_consecutive_repeats': max_consecutive_repeats(word),
-        'has_special_chars': has_special_chars(word),
-        'has_digits': has_digits(word),
-        'has_uppercase': has_uppercase(word),
-        'average_unicode': average_unicode_value(word),
+        # 'has_special_chars': has_special_chars(word),
+        # 'has_digits': has_digits(word),
+        # 'has_uppercase': has_uppercase(word),
         'special_char_ratio': ratio_special_chars_to_length(word),
         'digit_ratio': ratio_digits_to_length(word),
         'vowel_ratio': ratio_vowels_to_length(word),
         'consonant_ratio': ratio_consonants_to_length(word),
-        'symmetry': word_symmetry(word),
         # 'is_palindrome': is_palindrome(word), # This feature is not included in the final model du not being useful
         'unique_char_ratio': ratio_unique_chars_to_length(word),
-        'longest_alpha_seq': longest_alphabetical_sequence(word),
         'uppercase_proportion': proportion_uppercase(word),
-        'white_space_count': count_white_spaces(word)
+        'white_space_count': count_white_spaces(word),
+        # 'combined_ratio': combined_ratio(word)
     }
     return features
