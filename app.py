@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from transformers import BertTokenizer, TFBertForSequenceClassification
 from app_code.feature_engineering import extract_features
 from app_code.scale_features import scale_features_from_stored
 
@@ -18,29 +17,6 @@ loaded_models = {}
 
 def load_model(model_name):
     
-    model_path = os.path.join("model", model_name)
-    
-    if 'bert.config' in model_name.lower():
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Config file {model_path} not found.")
-        
-        with open(model_path) as f:
-            path = f.read().strip()
-            path = os.path.join("model", path)
-            
-        print(f"Loading model from path: {path}")
-        
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Model path {path} specified in config file not found.")
-        
-        model = TFBertForSequenceClassification.from_pretrained(path)
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        loaded_models[model_name] = {
-            'model': model,
-            'tokenizer': tokenizer
-        }
-        return loaded_models[model_name]
-        
     model_path = os.path.join("model/",model_name)
     # model_path = os.path.join(model_filename)
     # keras_model_path = f'model/{model_name}.keras'
@@ -48,13 +24,6 @@ def load_model(model_name):
     if model_name not in loaded_models:
         if os.path.exists(model_path) and model_path.endswith('.pkl'):
             loaded_models[model_name] = joblib.load(model_path)
-        
-        elif os.path.exists(model_path) and model_path.endswith('.h5'):
-            loaded_models[model_name] = {
-                'model': TFBertForSequenceClassification.from_pretrained(model_path),
-                'tokenizer': BertTokenizer.from_pretrained('bert-base-uncased')
-            }
-            
         elif os.path.exists(model_path) and model_path.endswith('.keras'):
             loaded_models[model_name] = tf.keras.models.load_model(model_path)
         else:
@@ -118,7 +87,7 @@ def load_model_and_predict_with_features(words, model):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     # List all .pkl and .keras files in the model directory
-    model_files = sorted([f for f in os.listdir(os.path.join('model')) if f.endswith('.pkl') or f.endswith('.keras') or f.endswith('bert.config')])
+    model_files = sorted([f for f in os.listdir(os.path.join('model')) if f.endswith('.pkl') or f.endswith('.keras')])
     prediction = None
     if request.method == 'POST':
         word = request.form['word']
@@ -157,14 +126,7 @@ def predict_password_likelihood(word, model_name):
             predictions = load_model_and_predict([word], model)
         
         return float(predictions[0])
-    elif 'bert' in model_name.lower():
-        # BERT model prediction
-        encoding = tokenizer([word], truncation=True, padding='max_length', max_length=64, return_tensors='tf')
-        logits = model(encoding)['logits']
-        prediction = tf.nn.sigmoid(logits).numpy().flatten()
-        probability = prediction[0]
         
-        return float(probability)
     else:
         # Extract features from the word
         features = extract_features(word)
