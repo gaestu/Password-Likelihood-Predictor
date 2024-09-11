@@ -8,15 +8,14 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install the dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && \
+    apt-get install -y libgomp1 && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the rest of the application code into the container
 COPY . .
-
-# Copy the model and code directories into the container
-# COPY model /app/model/
-# COPY app_code /app/code/
-
 
 # Expose the port the app runs on
 EXPOSE 5000

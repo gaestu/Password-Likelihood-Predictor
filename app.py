@@ -8,7 +8,6 @@ import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from transformers import BertTokenizer, TFBertForSequenceClassification
-
 from app_code.feature_engineering import extract_features
 from app_code.scale_features import scale_features_from_stored
 
@@ -89,9 +88,13 @@ def load_model_and_predict_with_features(words, model):
     
     # Convert words to sequences
     sequences = tokenizer.texts_to_sequences(words)
+
+    # Get the expected input shape of the model
+    expected_input_shape = model.input_shape[0][1] if isinstance(model.input_shape, list) else model.input_shape[1]
     
     # Pad the sequences to ensure uniform length
-    padded_sequences = pad_sequences(sequences, maxlen=64, padding='post')
+    # padded_sequences = pad_sequences(sequences, maxlen=64, padding='post')
+    padded_sequences = pad_sequences(sequences, maxlen=expected_input_shape, padding='post')
     
     predictions = []
     for word in words:
@@ -115,7 +118,7 @@ def load_model_and_predict_with_features(words, model):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     # List all .pkl and .keras files in the model directory
-    model_files = [f for f in os.listdir(os.path.join('model')) if f.endswith('.pkl') or f.endswith('.keras') or f.endswith('bert.config')]
+    model_files = sorted([f for f in os.listdir(os.path.join('model')) if f.endswith('.pkl') or f.endswith('.keras') or f.endswith('bert.config')])
     prediction = None
     if request.method == 'POST':
         word = request.form['word']
