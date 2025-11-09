@@ -33,10 +33,20 @@ Password-Likelihood-Predictor is a Flask-based web application that creates a sc
     docker run -p 5000:5000 password-likelihood-predictor
     ```
 
+## Local Setup
+
+```sh
+python3.13 -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+python app.py  # serves http://localhost:5000 in debug mode
+```
+
 ## Usage
 
 1. Open your web browser and navigate to `http://localhost:5000`.
-2. Enter a string and select a model to get a score.
+2. Select a model, paste one or more strings (one per line), or upload a `.txt` file that contains a list of strings.
+3. Click **Predict** to score the entire batch, then optionally sort the results or download them as CSV.
 
 ## Models
 
@@ -47,19 +57,12 @@ The application uses several machine learning models stored in the [`model/`] di
 - Logistic Regression (with and without oversampling)
 - Random Forest (with and without oversampling)
 
-## Feature Engineering
+## Feature Engineering & Scaling
 
-The feature engineering is handled in the [`app_code/feature_engineering.py`] file, which includes functions like:
-- `average_unicode_value`
-- `process_word_column`
-- `ratio_unique_chars_to_length`
-- `special_char_count`
-- `unique_char_count`
-- `uppercase_count`
-
-## Scaling Features
-
-The feature scaling is managed in the [`app_code/scale_features.py] file.
+- Feature extraction lives in `app_code/feature_engineering.py`. Keep helpers deterministic so both the classical estimators and hybrid neural networks remain in sync.
+- Scalers are cached and reused by the inference service via `app_code/scale_features.py` to avoid repeated disk reads.
+- The Flask app now defers to `app_code/prediction_service.py`, which batches preprocessing for both traditional and Keras models.
+- TensorFlow 2.18, NumPy 2.1, and scikit-learn 1.5 all ship wheels for Python 3.13, so no native compilation is required on modern interpreters.
 
 ## License
 

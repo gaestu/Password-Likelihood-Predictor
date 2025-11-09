@@ -9,105 +9,139 @@
 <body>
     <header>Password Likelihood Predictor</header>
     <div class="container">
-        <div class="left box">
-            <h2>Select Model</h2>
-            <select id="modelSelect">
-                {% for model in models %}
-                    <option value="{{ model }}">{{ model }}</option>
-                {% endfor %}
-            </select>
-            <h2>Enter Words</h2>
-            <textarea id="wordsInput" placeholder="Enter one or multiple words..."></textarea>
-            <button onclick="predict()">Predict</button>
+        <div class="panel">
+            <form id="predictForm" enctype="multipart/form-data" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="modelSelect">Select Model</label>
+                    <select id="modelSelect" name="model">
+                        {% if models %}
+                            {% for model in models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="">No models available</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="wordsInput">Enter Words</label>
+                    <textarea id="wordsInput" name="words" placeholder="Enter one or multiple words..." oninput="updateWordPreview()"></textarea>
+                </div>
+                <div class="form-group file-picker">
+                    <label for="wordsFile">or upload a .txt list</label>
+                    <input type="file" id="wordsFile" name="words_file" accept=".txt" onchange="updateWordPreview()">
+                    <small id="wordMeta">0 manual entries</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" onclick="predict()">Predict</button>
+                </div>
+            </form>
         </div>
-        <div class="right box">
+        <div class="panel results-panel">
             <h2>Results</h2>
-            <div id="results"></div>
-            <div class="button-container">
-                <button onclick="sortResults()">Sort by Score</button>
-                <button onclick="downloadCSV()">Download CSV</button>
+            <div id="results" aria-live="polite"></div>
+            <div class="button-row">
+                <button type="button" onclick="sortResults()">Sort by Score</button>
+                <button type="button" onclick="downloadCSV()">Download CSV</button>
             </div>
         </div>
     </div>
     <footer>
-        <div id="status"></div>
+        <div id="status" role="status"></div>
     </footer>
     <script>
-        document.addEventListener('keydown', function(event) {
+        let currentResults = [];
+
+        document.getElementById('wordsInput').addEventListener('keydown', function(event) {
             if (event.ctrlKey && event.key === 'Enter') {
                 predict();
             }
         });
 
-        function predict() {
-            const model = document.getElementById('modelSelect').value;
-            const words = document.getElementById('wordsInput').value.split('\n');
-            const resultsDiv = document.getElementById('results');
+        async function predict() {
+            const form = document.getElementById('predictForm');
             const statusDiv = document.getElementById('status');
-            resultsDiv.innerHTML = '';
-            statusDiv.innerHTML = 'Predicting...';
+            const resultsDiv = document.getElementById('results');
+            const formData = new FormData(form);
 
-            fetch('/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ model, words }),
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                statusDiv.innerHTML = 'Prediction complete.';
-                const ul = document.createElement('ul');
-                data.predictions.forEach(prediction => {
-                    const li = document.createElement('li');
-                    li.textContent = `${prediction.word}: ${prediction.score}`;
-                    ul.appendChild(li);
+            if (!formData.get('model')) {
+                statusDiv.textContent = 'Please select a model.';
+                return;
+            }
+
+            resultsDiv.innerHTML = '';
+            statusDiv.textContent = 'Predicting...';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
                 });
-                resultsDiv.appendChild(ul);
-            })
-            .catch(error => {
-                statusDiv.innerHTML = `Error: ${error.message}`;
-            });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Prediction failed.');
+                }
+
+                currentResults = data.predictions || [];
+                renderResults(currentResults);
+                statusDiv.textContent = `Prediction complete for ${currentResults.length} words.`;
+            } catch (error) {
+                currentResults = [];
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
         }
 
-        function sortResults() {
+        function renderResults(predictions) {
             const resultsDiv = document.getElementById('results');
-            const items = Array.from(resultsDiv.querySelectorAll('li'));
-            items.sort((a, b) => {
-                const scoreA = parseFloat(a.textContent.split(': ')[1]);
-                const scoreB = parseFloat(b.textContent.split(': ')[1]);
-                return scoreB - scoreA;
-            });
-            resultsDiv.innerHTML = '';
             const ul = document.createElement('ul');
-            items.forEach(item => ul.appendChild(item));
+            predictions.forEach(prediction => {
+                const li = document.createElement('li');
+                li.textContent = `${prediction.word}: ${prediction.score}`;
+                ul.appendChild(li);
+            });
             resultsDiv.appendChild(ul);
         }
 
-        function downloadCSV() {
-            const resultsDiv = document.getElementById('results');
-            const rows = [['Word', 'Score']];
-            resultsDiv.querySelectorAll('li').forEach(li => {
-                const [word, score] = li.textContent.split(': ');
-                rows.push([word, score]);
-            });
+        function sortResults() {
+            if (!currentResults.length) {
+                return;
+            }
+            currentResults.sort((a, b) => b.score - a.score);
+            document.getElementById('results').innerHTML = '';
+            renderResults(currentResults);
+        }
 
-            let csvContent = "data:text/csv;charset=utf-8," 
-                + rows.map(e => e.join(",")).join("\n");
+        function downloadCSV() {
+            if (!currentResults.length) {
+                return;
+            }
+            const rows = [['Word', 'Score'], ...currentResults.map(entry => [entry.word, entry.score])];
+            const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
 
             const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "predictions.csv");
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'predictions.csv');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
+
+        function updateWordPreview() {
+            const manualEntries = collectManualEntries();
+            const fileInput = document.getElementById('wordsFile');
+            const fileLabel = fileInput.files.length ? ` + file: ${fileInput.files[0].name}` : '';
+            const meta = `${manualEntries.length} manual entries${fileLabel}`;
+            document.getElementById('wordMeta').textContent = meta;
+        }
+
+        function collectManualEntries() {
+            const text = document.getElementById('wordsInput').value || '';
+            return text.split('\n').map(entry => entry.trim()).filter(Boolean);
+        }
+
+        updateWordPreview();
     </script>
 </body>
 </html>

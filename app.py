@@ -1,146 +1,79 @@
-from flask import Flask, request, render_template, jsonify
-import pandas as pd
-import os
-import sys
-import joblib
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from app_code.feature_engineering import extract_features
-from app_code.scale_features import scale_features_from_stored
+from flask import Flask, jsonify, render_template, request
+
+from app_code.prediction_service import PredictionService
 
 app = Flask(__name__)
-
-# Dictionary to store loaded models
-loaded_models = {}
-
-def load_model(model_name):
-    
-    model_path = os.path.join("model/",model_name)
-    # model_path = os.path.join(model_filename)
-    # keras_model_path = f'model/{model_name}.keras'
-    
-    if model_name not in loaded_models:
-        if os.path.exists(model_path) and model_path.endswith('.pkl'):
-            loaded_models[model_name] = joblib.load(model_path)
-        elif os.path.exists(model_path) and model_path.endswith('.keras'):
-            loaded_models[model_name] = tf.keras.models.load_model(model_path)
-        else:
-            raise FileNotFoundError(f"Model file {model_path} not found.")
-    return loaded_models[model_name]
-
-def load_model_and_predict(words, model):
-    # Initialize the tokenizer
-    tokenizer = Tokenizer(char_level=True, num_words=50000)
-    
-    # Fit the tokenizer on the input words (for character-level tokenization)
-    tokenizer.fit_on_texts(words)
-    
-    # Convert words to sequences
-    sequences = tokenizer.texts_to_sequences(words)
-    
-    # Pad the sequences to ensure uniform length
-    padded_sequences = pad_sequences(sequences, maxlen=64, padding='post')
-
-    # Predict the scores for each word
-    predictions = model.predict(padded_sequences).flatten()
-
-    return predictions
-
-def load_model_and_predict_with_features(words, model):
-    # Initialize the tokenizer
-    tokenizer = Tokenizer(char_level=True, num_words=50000)
-    
-    # Fit the tokenizer on the input words (for character-level tokenization)
-    tokenizer.fit_on_texts(words)
-    
-    # Convert words to sequences
-    sequences = tokenizer.texts_to_sequences(words)
-
-    # Get the expected input shape of the model
-    expected_input_shape = model.input_shape[0][1] if isinstance(model.input_shape, list) else model.input_shape[1]
-    
-    # Pad the sequences to ensure uniform length
-    # padded_sequences = pad_sequences(sequences, maxlen=64, padding='post')
-    padded_sequences = pad_sequences(sequences, maxlen=expected_input_shape, padding='post')
-    
-    predictions = []
-    for word in words:
-        # Extract features from the word
-        features = extract_features(word)
-        
-        # Convert the dictionary of features to a pandas DataFrame
-        features_df = pd.DataFrame([features])
-        
-        # Scale the extracted features
-        scaled_features_df = scale_features_from_stored(features_df)
-        
-        # Predict the scores for each word
-        prediction = model.predict([padded_sequences, scaled_features_df]).flatten()
-        predictions.append(prediction[0])
-    
-    return predictions
+prediction_service = PredictionService()
+MAX_WORDS = 5000
 
 
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def index():
-    # List all .pkl and .keras files in the model directory
-    model_files = sorted([f for f in os.listdir(os.path.join('model')) if f.endswith('.pkl') or f.endswith('.keras')])
-    prediction = None
-    if request.method == 'POST':
-        word = request.form['word']
-        model_name = request.form['model']
-        prediction = predict_password_likelihood(word, model_name)
-    return render_template('index.html', prediction=prediction, models=model_files)
+    model_files = prediction_service.list_available_models()
+    return render_template('index.html', models=model_files)
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    model_name = data.get('model')
-    words = data.get('words', [])
-    predictions = []
+    try:
+        model_name, words = _parse_prediction_payload(request)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
 
-    for word in words:
-        score = predict_password_likelihood(word, model_name)
-        predictions.append({'word': word, 'score': score})
+    predictions = prediction_service.predict(words, model_name)
 
-    return jsonify({'predictions': predictions})
+    response = [
+        {'word': word, 'score': score}
+        for word, score in zip(words, predictions)
+    ]
+    return jsonify({'predictions': response})
 
-def predict_password_likelihood(word, model_name):
-    # Load the selected model
-    model_data = load_model(model_name)
-    
-    if isinstance(model_data, dict) and 'model' in model_data and 'tokenizer' in model_data:
-        model = model_data['model']
-        tokenizer = model_data['tokenizer']
+
+def _parse_prediction_payload(req):
+    if req.is_json:
+        payload = req.get_json(silent=True) or {}
+        model_name = payload.get('model')
+        words = payload.get('words', [])
     else:
-        model = model_data
-    
-    if isinstance(model, tf.keras.Model):
-        # If the model is a Keras model, use the Keras prediction function
-        if 'features' in model_name.lower():
-            predictions = load_model_and_predict_with_features([word], model)
+        model_name = req.form.get('model')
+        words = _split_text_block(req.form.get('words', ''))
+        uploaded_file = req.files.get('words_file')
+        if uploaded_file and uploaded_file.filename:
+            file_content = uploaded_file.read()
+            decoded = file_content.decode('utf-8', errors='ignore')
+            words.extend(_split_text_block(decoded))
+
+    if not model_name:
+        raise ValueError('Model name is required.')
+
+    normalized_words = _normalize_words(words)
+    if not normalized_words:
+        raise ValueError('No words provided.')
+
+    if len(normalized_words) > MAX_WORDS:
+        raise ValueError(f'Too many words submitted (max {MAX_WORDS}).')
+
+    return model_name, normalized_words
+
+
+def _normalize_words(words):
+    normalized = []
+    for entry in words:
+        if isinstance(entry, str):
+            normalized.extend(_split_text_block(entry))
+        elif entry is None:
+            continue
         else:
-            predictions = load_model_and_predict([word], model)
-        
-        return float(predictions[0])
-        
-    else:
-        # Extract features from the word
-        features = extract_features(word)
-        
-        # Convert the dictionary of features to a pandas DataFrame
-        features_df = pd.DataFrame([features])
-        
-        # Scale the extracted features
-        scaled_features_df = scale_features_from_stored(features_df)
-        
-        # Execute the model to get the prediction
-        prediction_proba = model.predict_proba(scaled_features_df)[0, 1]
-        
-        return float(prediction_proba)
+            normalized.append(str(entry).strip())
+    return [word for word in normalized if word]
+
+
+def _split_text_block(text_block):
+    if not text_block:
+        return []
+    normalized = text_block.replace('\r\n', '\n')
+    return [line.strip() for line in normalized.split('\n') if line.strip()]
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
